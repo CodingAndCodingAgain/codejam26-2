@@ -55,10 +55,6 @@
         cursor: pointer;
       }
 
-      #bad-chrono {
-        pointer-events: none; /* Oh, the illusion of control */
-      }
-
       /* Popup ninja */
       #hover-ninja-popup {
         background: white;
@@ -119,11 +115,6 @@
           opacity: 1;
         }
       }
-
-      #dissapearing-button {
-        width: 145px;
-        height: 44px;
-      }
     </style>
   </head>
 
@@ -138,8 +129,6 @@
           <span id="powered-by-desc"></span>
         </div>
       </div>
-      <!-- The simple and badly written cronometer -->
-      <button id="bad-chrono" class="bad-buttons">Skip Ad...</button>
 
       <!-- The on hover ninja -->
       <button id="hover-ninja-button" class="bad-buttons">Skip Ad...</button>
@@ -148,8 +137,8 @@
           <h2>Hey, just wait a moment!</h2>
         </div>
         <div id="hover-ninja-desc">
-          Help us understand why you wanted to skip the ad to help our sponsors.
-          Answer this quick question to proceed!
+          Help us understand why you wanted to skip the ad to help our
+          advertisers. Answer this quick question to proceed!
         </div>
         <textarea
           id="hover-ninja-input"
@@ -157,345 +146,78 @@
         ></textarea>
         <button id="hover-ninja-submit">Submit</button>
       </div>
-
-      <!--The obnoxious "Are you watching" -->
-      <button id="are-you-watching-button" class="bad-buttons">
-        Wait for the ad to finish...
-      </button>
-
-      <!--The dissapearing button-->
-      <button id="dissapearing-button" class="bad-buttons">Skip the add</button>
     </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/gsap@3.15/dist/gsap.min.js"></script>
 
     <script type="text/javascript">
       (function (window, document) {
-        // Required for GSAP
-        document.addEventListener("DOMContentLoaded", (event) => {
-          // gsap code here!
-          const adSuccess = () =>
-            window.top.postMessage({ type: "success" }, "*");
-          const adFail = () => window.top.postMessage({ type: "fail" }, "*");
-          const getVideoInfo = () =>
-            window.top.postMessage({ type: "getVideoInfo" }, "*");
-          const pauseVideo = () =>
-            window.top.postMessage({ type: "pause" }, "*");
-          const resumeVideo = () =>
-            window.top.postMessage({ type: "play" }, "*");
+        const adFail = () => window.top.postMessage({ type: "fail" }, "*");
+        const getVideoInfo = () =>
+          window.top.postMessage({ type: "getVideoInfo" }, "*");
+        const pauseVideo = () => window.top.postMessage({ type: "pause" }, "*");
+        const resumeVideo = () => window.top.postMessage({ type: "play" }, "*");
 
-          const isMobile =
-            /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-              navigator.userAgent,
-            );
+        const isMobile =
+          /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+            navigator.userAgent,
+          );
 
-          const jokeIndex = Math.round(Math.random() * (isMobile ? 2 : 3));
+        window.removeEventListener("message", null);
 
-          window.removeEventListener("message", null);
+        // On hover ninja: The ninja popup
+        // Just before the user can click the button, our ninja will appear and prompt something silly.
+        // However, there are connectivity problems sending the important message the user typed in and the process must be restarted again!
 
-          // The simple and badly written cronometer: You can skip the ad, after the video finishes
-          // It's deviousness lies in its simplicity, the button cannot be clicked thus the ad cannot be skipped
-          // It can be used to show the cool videos the rest of the participants submited.
-          if (jokeIndex === 0) {
-            const badChrono = document.getElementById("bad-chrono");
-            const delay = 1; //  1 second
+        const hoverNinjaButton = document.getElementById("hover-ninja-button");
+        const hoverNinjaPopup = document.getElementById("hover-ninja-popup");
+        const hoverNinjaInput = document.getElementById("hover-ninja-input");
+        const hoverNinjaSubmit = document.getElementById("hover-ninja-submit");
 
-            setInterval(() => {
-              getVideoInfo();
-            }, 1000);
+        let theyLikedAtLeastOnce = false;
 
-            window.addEventListener("message", (event) => {
-              if (event.data.type === "videoInfo") {
-                const { currentTime, duration, paused } = event.data;
-
-                if (paused) {
-                  badChrono.innerText = "Please resume the ad";
-                } else {
-                  const remaining = duration - currentTime + delay;
-
-                  const minutes = `${Math.floor(remaining / 60)}`.padStart(
-                    2,
-                    0,
-                  );
-                  const seconds = `${Math.floor(remaining % 60)}`.padStart(
-                    2,
-                    0,
-                  );
-
-                  badChrono.style.display = "block";
-                  badChrono.innerText = `Skip ad in... ${minutes}:${seconds}`;
-                }
-              }
-
-              if (event.data.type === "adFinished") {
-                badChrono.style.display = "none";
-                adFail();
-              }
+        // Change the button behaviour
+        isMobile
+          ? hoverNinjaButton.onclick
+          : (hoverNinjaButton.onmouseenter = () => {
+              hoverNinjaButton.style.display = "none";
+              hoverNinjaPopup.style.display = "flex";
+              pauseVideo();
             });
+
+        // If they submitted an answer that is not "Yes, I loved it", restart.
+        // If they submitted "Yes, I loved it", give them a pat on the back, then restart when they try again.
+        hoverNinjaSubmit.onclick = () => {
+          const didTheyLovedIt = hoverNinjaInput.value === "Yes, I loved it";
+          const confirmText =
+            didTheyLovedIt && !theyLikedAtLeastOnce
+              ? "That is so good to hear!"
+              : "Sorry, we could't submit the answer you provided due to a network failure, restarting...";
+
+          alert(confirmText);
+
+          if (!didTheyLovedIt) {
+            adFail();
+          } else {
+            if (theyLikedAtLeastOnce) {
+              adFail();
+            } else {
+              theyLikedAtLeastOnce = true;
+              hoverNinjaPopup.style.display = "none";
+              hoverNinjaButton.style.display = "block";
+              resumeVideo();
+            }
+          }
+        };
+
+        window.addEventListener("message", (event) => {
+          if (event.data.type === "adStarted") {
+            hoverNinjaButton.style.display = "block";
           }
 
-          // On hover ninja: The ninja popup
-          // Just before the user can click the button, our ninja will appear and prompt something silly.
-          // However, there are connectivity problems sending the important message the user typed in and the process must be restarted again!
-          if (jokeIndex === 1) {
-            const hoverNinjaButton =
-              document.getElementById("hover-ninja-button");
-            const hoverNinjaPopup =
-              document.getElementById("hover-ninja-popup");
-            const hoverNinjaInput =
-              document.getElementById("hover-ninja-input");
-            const hoverNinjaSubmit =
-              document.getElementById("hover-ninja-submit");
-
-            let theyLikedAtLeastOnce = false;
-
-            // Change the button behaviour
-            isMobile
-              ? hoverNinjaButton.onclick
-              : (hoverNinjaButton.onmouseenter = () => {
-                  hoverNinjaButton.style.display = "none";
-                  hoverNinjaPopup.style.display = "flex";
-                  pauseVideo();
-                });
-
-            // If they submitted an answer that is not "Yes, I loved it", restart.
-            // If they submitted "Yes, I loved it", give them a pat on the back, then restart when they try again.
-            hoverNinjaSubmit.onclick = () => {
-              const didTheyLovedIt =
-                hoverNinjaInput.value === "Yes, I loved it";
-              const confirmText =
-                didTheyLovedIt && !theyLikedAtLeastOnce
-                  ? "That is so good to hear!"
-                  : "Sorry, we could't submit the answer you provided due to a network failure, restarting...";
-
-              alert(confirmText);
-
-              if (!didTheyLovedIt) {
-                adFail();
-              } else {
-                if (theyLikedAtLeastOnce) {
-                  adFail();
-                } else {
-                  theyLikedAtLeastOnce = true;
-                  hoverNinjaPopup.style.display = "none";
-                  hoverNinjaButton.style.display = "block";
-                  resumeVideo();
-                }
-              }
-            };
-
-            window.addEventListener("message", (event) => {
-              if (event.data.type === "adStarted") {
-                hoverNinjaButton.style.display = "block";
-              }
-
-              if (event.data.type === "adFinished") {
-                [hoverNinjaButton, hoverNinjaPopup].map(
-                  (e) => (e.style.display = "none"),
-                );
-                adFail();
-              }
-            });
-          }
-
-          // the obnoxious "Are you watching": stop at the 30%, the 70% and at the 90% of the ad
-          // we will see if the user is paying attention to the ad
-          // if they aren't, we will restart the ad
-          // if they are, we won't belive them
-          // we may believe them if they show some kind of interaction, like clicking the screen, just a few clicks
-          if (jokeIndex === 2) {
-            const areYouWatchingButton = document.getElementById(
-              "are-you-watching-button",
+          if (event.data.type === "adFinished") {
+            [hoverNinjaButton, hoverNinjaPopup].map(
+              (e) => (e.style.display = "none"),
             );
-            const overlay = document.getElementById("overlay-container");
-            const beep = () => {
-              const audioContext = new AudioContext();
-              const oscillator = audioContext.createOscillator();
-              const gainNode = audioContext.createGain();
-              gainNode.gain.value = 0.3; // This controls the volume
-              oscillator.type = "sine";
-              oscillator.frequency.setValueAtTime(
-                440,
-                audioContext.currentTime,
-              );
-              oscillator.connect(gainNode);
-              gainNode.connect(audioContext.destination);
-              oscillator.start();
-              oscillator.stop(audioContext.currentTime + 0.5);
-            };
-
-            const FIRST_CLICK_THRESHOLD = 40;
-            const SECOND_CLICK_THRESHOLD = 150;
-            const THIRD_CLICK_THRESHOLD = 1500; // You may go easy on them, I won't
-
-            // The counter of user clicks, the death counter, the three timestamp at which we will pause the video and booleans to keep track of where we are
-            let clickCounter = 0;
-            let deathCounter = 10;
-            let firstStop, secondStop, thirdStop;
-            let firstStopReached = false,
-              secondStopReached = false,
-              thirdStopReached = false;
-
-            // Message to show when we stop the ad
-            let pauseVideoAd = false;
-            let showMessage;
-            let showingMessage = false;
-            let alreadyShowingMessage = false;
-
-            // Gets the video info, shows the messages, stops the add and keeps track of the final clicks
-            setInterval(() => {
-              const allStopsReached =
-                firstStopReached && secondStopReached && thirdStopReached;
-              getVideoInfo();
-
-              if (pauseVideoAd) {
-                pauseVideo();
-                showingMessage = true;
-                if (showingMessage && !alreadyShowingMessage) {
-                  alreadyShowingMessage = true;
-                  setTimeout(() => {
-                    let confirmation = confirm(showMessage);
-                    if (!confirmation) {
-                      adFail();
-                    } else {
-                      pauseVideoAd = false;
-                      showingMessage = false;
-                      alreadyShowingMessage = false;
-                    }
-                  }, 500);
-                }
-                // We resume the ad if they didn't reach all stops
-              } else if (!allStopsReached) {
-                resumeVideo();
-              }
-
-              // The final showdown
-              if (firstStopReached && secondStopReached && thirdStopReached) {
-                if (clickCounter < SECOND_CLICK_THRESHOLD) {
-                  adFail();
-                } else if (
-                  // Even if they get to the end and surpass it, we will still put them on edge
-                  clickCounter < THIRD_CLICK_THRESHOLD ||
-                  deathCounter > 0
-                ) {
-                  if (deathCounter > 0) {
-                    deathCounter--;
-                    beep();
-                  } else {
-                    adFail();
-                  }
-                } else {
-                  adSuccess();
-                }
-              }
-            }, 1000);
-
-            overlay.onclick = () => clickCounter++;
-
-            window.addEventListener("message", async (event) => {
-              if (event.data.type === "adStarted") {
-                areYouWatchingButton.style.display = "block";
-              }
-
-              if (event.data.type === "videoInfo") {
-                const { currentTime, duration, paused } = event.data;
-
-                if (isNaN(firstStop)) {
-                  firstStop = Math.floor(duration * 0.3);
-                  secondStop = Math.floor(duration * 0.7);
-                  thirdStop = Math.floor(duration * 0.9);
-                }
-
-                if (currentTime > firstStop && !firstStopReached) {
-                  pauseVideoAd = true;
-                  showMessage =
-                    "Inactivity detected: Are you watching? Our system has reported low activity on your end. Please, demonstrate that you are still there by clicking or tapping on the ad";
-                  firstStopReached = true;
-                }
-
-                if (currentTime > secondStop && !secondStopReached) {
-                  pauseVideoAd = true;
-                  showMessage =
-                    clickCounter < FIRST_CLICK_THRESHOLD
-                      ? `Severe inactivity detected: Are you sure you are still watching? Our system detected low activity on your end`
-                      : `Low activity detected: Our system detected low activity on your end, we may restart the ad if a next threshold is not reached`;
-                  secondStopReached = true;
-                }
-
-                if (currentTime > thirdStop && !thirdStopReached) {
-                  pauseVideoAd = true;
-                  showMessage =
-                    clickCounter < SECOND_CLICK_THRESHOLD
-                      ? `Fatal inactivity detected: Our system detected very low activity on your end, therefore we are restarting the ad.`
-                      : `Minimum activity detected: Our system detected very low activity on your end, we WILL restart the ad if a next threshold is not reached`;
-                  thirdStopReached = true;
-                }
-              }
-
-              if (event.data.type === "adFinished") {
-                areYouWatchingButton.style.display = "none";
-                adFail();
-              }
-            });
-          }
-
-          // the annoying "Catch me if you can/Do a Flip!"
-          // We move the button when they try to click it, a classic
-          // This one doesn't work on mobile
-          if (jokeIndex === 3) {
-            const overlay = document.getElementById("overlay-container");
-            const { top, right, bottom, left } =
-              overlay.getBoundingClientRect();
-            const getRandomTop = () => Math.round(Math.random() * bottom);
-            const getRandomLeft = () => Math.round(Math.random() * right);
-            const dissapearingButton = document.getElementById(
-              "dissapearing-button",
-            );
-
-            dissapearingButton.style.display = "block";
-
-            dissapearingButton.onclick = () => adSuccess();
-            // whenever they enter in the are of the button we move it
-            dissapearingButton.onmouseenter = () => {
-              const { top: topLimit, bottom: bottomLimit } =
-                dissapearingButton.getBoundingClientRect();
-              gsap.fromTo(
-                dissapearingButton,
-                { opacity: 1 },
-                { opacity: 0, duration: 0.2 },
-              );
-              gsap.fromTo(
-                dissapearingButton,
-                { opacity: 0 },
-                {
-                  opacity: 1,
-                  duration: 0.3,
-                  // We take into account the width and height of the button
-                  top: Math.max(0, getRandomTop() - 44),
-                  left: Math.max(0, getRandomLeft() - 145),
-                },
-              );
-            };
-
-            const flip = () =>
-              gsap.to(dissapearingButton, {
-                rotation: "+=360",
-                duration: 0.5,
-              });
-            // taunt ( "Do a Flip" )
-            setInterval(() => {
-              flip();
-              // the double taunt
-              if (Math.round(Math.random()) === 0) {
-                flip();
-              }
-            }, [7000]);
-
-            window.addEventListener("message", async (event) => {
-              if (event.data.type === "adFinished") {
-                adFail();
-              }
-            });
+            adFail();
           }
         });
       })(window, document);
